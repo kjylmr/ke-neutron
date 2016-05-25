@@ -1,0 +1,18 @@
+--- a/neutron/plugins/mlnx/common/comm_utils.py	2014-10-30 09:10:04.378788721 +0000
++++ b/neutron/plugins/mlnx/common/comm_utils.py	2014-10-30 09:10:27.689850641 +0000
+@@ -35,7 +35,6 @@
+     :param retries: number of times to try before giving up
+     :raises: exceptionToCheck
+     """
+-    sleep_fn = time.sleep
+ 
+     def __init__(self, exceptionToCheck,
+                  interval=cfg.CONF.ESWITCH.request_timeout / 1000,
+@@ -56,7 +55,7 @@
+                 except self.exc:
+                     LOG.debug(_("Request timeout - call again after "
+                               "%s seconds"), sleep_interval)
+-                    RetryDecorator.sleep_fn(sleep_interval)
++                    time.sleep(sleep_interval)
+                     num_of_iter -= 1
+                     sleep_interval *= self.backoff_rate
