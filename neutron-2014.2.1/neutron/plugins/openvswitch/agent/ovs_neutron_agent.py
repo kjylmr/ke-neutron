@@ -17,6 +17,7 @@ import hashlib
 import signal
 import sys
 import time
+import commands
 
 import eventlet
 eventlet.monkey_patch()
@@ -131,7 +132,7 @@ class OVSNeutronAgent(n_rpc.RpcCallback,
     RPC_API_VERSION = '1.2'
 
     def __init__(self, integ_br, tun_br, local_ip,
-                 bridge_mappings, root_helper,
+                 bridge_mappings, phy_int, root_helper,
                  polling_interval, tunnel_types=None,
                  veth_mtu=None, l2_population=False,
                  enable_distributed_routing=False,
@@ -166,6 +167,8 @@ class OVSNeutronAgent(n_rpc.RpcCallback,
         super(OVSNeutronAgent, self).__init__()
         self.use_veth_interconnection = use_veth_interconnection
         self.veth_mtu = veth_mtu
+        self.phy_int = phy_int
+        self.trunk_vlans = set()
         self.root_helper = root_helper
         self.available_local_vlans = set(moves.xrange(q_const.MIN_VLAN_TAG,
                                                       q_const.MAX_VLAN_TAG))
@@ -693,6 +696,14 @@ class OVSNeutronAgent(n_rpc.RpcCallback,
 
         if not lvm.vif_ports:
             self.reclaim_local_vlan(net_uuid)
+            if lvm.network_type == p_const.TYPE_VLAN and lvm.segmentation_id in self.trunk_vlans:
+                self.trunk_vlans.remove(lvm.segmentation_id)
+                if self.trunk_vlans:
+                    ovs_lib.set_port_trunk(self.root_helper, self.phy_int, self.trunk_vlans)
+                    LOG.info("Physical interface %s will remove the vlan id %d", self.phy_int, lvm.segmentation_id)
+                else:
+                    ovs_lib.clear_port_trunk(self.root_helper, self.phy_int)
+                    LOG.info("Physical interface %s will remove all the vlan id", self.phy_int)
 
     def port_dead(self, port):
         '''Once a port has no binding, put it on the "dead vlan".
@@ -871,7 +882,7 @@ class OVSNeutronAgent(n_rpc.RpcCallback,
         if self.patch_int_ofport_ha and int(self.patch_int_ofport_ha) > 0:
             patch_ofport = set(self.patch_int_ofport) | set(self.patch_int_ofport_ha)
             self.patch_int_ofport = ','.join(patch_ofport)
-        
+
         self.tun_br.add_flow(table=constants.LEARN_FROM_TUN,
                              priority=1,
                              actions="learn(%s),output:%s" %
@@ -1268,6 +1279,14 @@ class OVSNeutronAgent(n_rpc.RpcCallback,
                     LOG.debug(_("Setting status for %s to UP"), device)
                     self.plugin_rpc.update_device_up(
                         self.context, device, self.agent_id, cfg.CONF.host)
+                if details['network_type'] == p_const.TYPE_VLAN and self.phy_int:
+                    mod = ovs_lib.get_port_vlan_mode(self.root_helper, self.phy_int)
+                    if mod != 'trunk':
+                        ovs_lib.set_port_trunk_mode(self.root_helper, self.phy_int)
+                    vlan_id = details['segmentation_id']
+                    if vlan_id not in self.trunk_vlans:
+                        self.trunk_vlans.add(vlan_id)
+                        ovs_lib.set_port_trunk(self.root_helper, self.phy_int, self.trunk_vlans)
                 else:
                     LOG.debug(_("Setting status for %s to DOWN"), device)
                     self.plugin_rpc.update_device_down(
@@ -1698,6 +1717,7 @@ def create_agent_config_map(config):
         l3_ha_bridge=config.OVS.l3_ha_bridge,
         local_ip=config.OVS.local_ip,
         bridge_mappings=bridge_mappings,
+        phy_int=config.OVS.physical_interface,
         root_helper=config.AGENT.root_helper,
         polling_interval=config.AGENT.polling_interval,
         minimize_polling=config.AGENT.minimize_polling,

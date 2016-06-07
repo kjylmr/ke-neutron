@@ -590,3 +590,33 @@ def _build_flow_expr_str(flow_dict, cmd):
         flow_expr_arr.append(actions)
 
     return ','.join(flow_expr_arr)
+
+def get_port_vlan_mode(root_helper, phy_int):
+    args = ["ovs-vsctl", "--data=string", "--no-heading",
+            "--", "--columns=vlan_mode", "list", "port",  phy_int]
+    try:
+        return utils.execute(args, root_helper=root_helper).strip()
+    except Exception:
+        LOG.exception(_("Port %s not found"), phy_int)
+
+def set_port_trunk_mode(root_helper, phy_int):
+    args = ["ovs-vsctl", "set", "port",  phy_int, "vlan_mode=trunk"]
+    try:
+        return utils.execute(args, root_helper=root_helper).strip()
+    except Exception:
+        LOG.exception(_("Port %s cat not be set mode trunk"), phy_int)
+
+def set_port_trunk(root_helper, phy_int, vlan_ids):
+    ids = list(vlan_ids)
+    args = ["ovs-vsctl", "set", "port",  phy_int, "trunk=%s" %ids]
+    try:
+        return utils.execute(args, root_helper=root_helper).strip()
+    except Exception:
+        LOG.exception(_("Port %s cat not set trunk %s."), phy_int, vlan_ids)
+
+def clear_port_trunk(root_helper, phy_int):
+    args = ["ovs-vsctl", "clear", "port",  phy_int, "trunk"]
+    try:
+        return utils.execute(args, root_helper=root_helper).strip()
+    except Exception:
+        LOG.exception(_("Port %s cat not clear trunk"), phy_int)

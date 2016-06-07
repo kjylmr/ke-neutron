@@ -40,7 +40,7 @@ ovs_opts = [
                help=_("Peer patch port in tunnel bridge for integration "
                       "bridge.")),
     cfg.StrOpt('int_peer_patch_port_ha', default='patch-tun-ha',
-               help=_("Peer patch port in integration bridge for tunnel "
+               help=_("Peer patch port in integration bridge for ha_tunnel "
                       "bridge.")),
     cfg.StrOpt('tun_peer_patch_port_ha', default='patch-ha',
                help=_("Peer patch port in tunnel bridge for integration "
@@ -69,6 +69,8 @@ ovs_opts = [
                        "integration bridge to physical bridges.")),
     cfg.BoolOpt('reset_ovs', default=False,
                 help=_("Reset ovs flows when agent start if this set true.")),
+    cfg.StrOpt('physical_interface', default='',
+                help=_("Physical interface to use.")),
 ]
 
 agent_opts = [
